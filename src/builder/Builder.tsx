@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SAMPLE_DATA } from "../host/runtime/sample-data";
 import type { Component } from "../host/runtime/runtime";
+import { COMPONENT_TYPE } from "../host/runtime/runtime";
 import { Header } from "./components/Header";
 import { NumberPanel } from "./components/NumberPanel";
 import { TextPanel } from "./components/TextPanel";
@@ -11,6 +12,7 @@ export function Builder() {
   const [data, setData] = useState<Component>(SAMPLE_DATA);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -19,6 +21,8 @@ export function Builder() {
 
       if (event.data.type === 'ready') {
         setIsLoaded(true);
+      } else if (event.data.type === 'selectComponent') {
+        setSelectedKey(event.data.id);
       }
     };
 
@@ -34,17 +38,38 @@ export function Builder() {
     }
   }, [data, isLoaded]);
 
-  const updateTextProp = (key: string, value: string | number) => {
+  useEffect(() => {
+    if (isLoaded && iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: 'enableEditMode' }, '*');
+    }
+  }, [isLoaded]);
+
+  function findComponent(node: Component, key: string): Component | null {
+    if (node.key === key) return node;
+
+    if (node.type === COMPONENT_TYPE.Box && node.props.children) {
+      for (const child of node.props.children) {
+        const found = findComponent(child, key);
+        if (found) return found;
+      }
+    }
+
+    return null;
+  }
+
+  const updateProp = (key: string, prop: string, value: string | number) => {
     setData((prev) => {
       const newData = structuredClone(prev);
-      // @ts-expect-error
-      newData.props.children[0].props[key] = value;
+      const comp = findComponent(newData, key);
+      if (comp) {
+        // @ts-expect-error
+        comp.props[prop] = value;
+      }
       return newData;
     });
   };
 
-  // @ts-expect-error -- we know it's a Box with children
-  const textProps = data.props.children[0].props;
+  const selectedComponent = selectedKey ? findComponent(data, selectedKey) : null;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -61,16 +86,34 @@ export function Builder() {
         </section>
 
         <aside className="w-72 border-gray-300">
-          <div className="bg-gray-100 p-3 border-b border-gray-300">
-            <h2 className="text-md text-gray-500">Text</h2>
-          </div>
-
-          <div className="flex flex-col gap-3 p-3">
-            <TextPanel label="Text" value={textProps.text} onChange={(v) => updateTextProp('text', v)} />
-            <TextPanel label="Color" value={textProps.color} onChange={(v) => updateTextProp('color', v)} />
-            <NumberPanel label="Font size" value={textProps.fontSize} onChange={(v) => updateTextProp('fontSize', v)} />
-            <NumberPanel label="Font weight" value={textProps.fontWeight} onChange={(v) => updateTextProp('fontWeight', v)} />
-          </div>
+          {selectedComponent ? (
+            <>
+              const key = selectedKey!;
+              <div className="bg-gray-100 p-3 border-b border-gray-300">
+                <h2 className="text-md text-gray-500">{selectedComponent.type}</h2>
+              </div>
+              <div className="flex flex-col gap-3 p-3">
+                {selectedComponent.type === 'Text' ? (
+                  <>
+                    <TextPanel label="Text" value={selectedComponent.props.text ?? 'Insert a text'} onChange={(v) => updateProp(selectedKey!, 'text', v)} />
+                    <TextPanel label="Color" value={selectedComponent.props.color ?? ''} onChange={(v) => updateProp(selectedKey!, 'color', v)} />
+                    <NumberPanel label="Font size" value={selectedComponent.props.fontSize ?? 16} onChange={(v) => updateProp(selectedKey!, 'fontSize', v)} />
+                    <NumberPanel label="Font weight" value={selectedComponent.props.fontWeight ?? 400} onChange={(v) => updateProp(selectedKey!, 'fontWeight', v)} />
+                  </>
+                ) : (
+                  <>
+                    <TextPanel label="Background Color" value={selectedComponent.props.backgroundColor ?? ''} onChange={(v) => updateProp(selectedKey!, 'backgroundColor', v)} />
+                    <NumberPanel label="Padding" value={selectedComponent.props.padding ?? 0} onChange={(v) => updateProp(selectedKey!, 'padding', v)} />
+                    <NumberPanel label="Width" value={selectedComponent.props.width ?? 0} onChange={(v) => updateProp(selectedKey!, 'width', v)} />
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="bg-gray-100 p-3 border-b border-gray-300">
+              <h2 className="text-md text-gray-500">Select a component</h2>
+            </div>
+          )}
         </aside>
       </main>
     </div>

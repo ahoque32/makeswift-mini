@@ -31,20 +31,33 @@ type Text = {
 
 export type Component = Box | Text;
 
-export function renderComponent(component: Component): ReactNode {
+export function renderComponent(component: Component, editMode: boolean = false): ReactNode {
+  let rendered: ReactNode;
   switch (component.type) {
     case COMPONENT_TYPE.Box: {
       const { children, ...props } = component.props;
 
-      return (
+      rendered = (
         <Box key={component.key} {...props}>
-          {children?.map(renderComponent)}
+          {children?.map((c) => renderComponent(c, editMode))}
         </Box>
       );
+      break;
     }
     case COMPONENT_TYPE.Text:
-      return <Text key={component.key} {...component.props} />;
+      rendered = <Text key={component.key} {...component.props} />;
+      break;
     default:
-      return null;
+      rendered = null;
+  }
+
+  if (editMode) {
+    return (
+      <div key={`${component.key}-wrapper`} data-component-id={component.key} style={{ display: "contents" }}>
+        {rendered}
+      </div>
+    );
+  } else {
+    return rendered;
   }
 }
