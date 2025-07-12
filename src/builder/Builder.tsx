@@ -88,7 +88,6 @@ export function Builder() {
         <aside className="w-72 border-gray-300">
           {selectedComponent ? (
             <>
-              const key = selectedKey!;
               <div className="bg-gray-100 p-3 border-b border-gray-300">
                 <h2 className="text-md text-gray-500">{selectedComponent.type}</h2>
               </div>
