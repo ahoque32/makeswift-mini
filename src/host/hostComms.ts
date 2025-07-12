@@ -8,12 +8,17 @@ let isHandshaked = false;
 const handlers = new Map<string, (payload: any) => void>();
 
 function handleMessage(event: MessageEvent) {
-  if (event.origin !== allowedOrigin) return;
+  if (event.origin !== allowedOrigin) {
+    console.debug('[Host] Ignored message: origin mismatch', event.origin, allowedOrigin);
+    return;
+  }
 
   let data;
   try {
     data = JSON.parse(event.data);
-  } catch {
+    console.debug('[Host] Parsed incoming message:', data);
+  } catch (e) {
+    console.debug('[Host] Failed to parse message:', e);
     return;
   }
 
@@ -22,18 +27,26 @@ function handleMessage(event: MessageEvent) {
   const { type, payload } = data;
 
   if (type === 'HANDSHAKE_INIT') {
+    console.debug('[Host] Received HANDSHAKE_INIT from builder');
     sendAck();
     isHandshaked = true;
     return;
   }
 
-  if (!isHandshaked) return;
+  if (!isHandshaked) {
+    console.debug('[Host] Ignored message: handshake not complete');
+    return;
+  }
 
   const handler = handlers.get(type);
-  if (handler) handler(payload);
+  if (handler) {
+    console.debug('[Host] Handling message type:', type);
+    handler(payload);
+  }
 }
 
 function sendAck() {
+  console.debug('[Host] Sending HANDSHAKE_ACK to builder');
   window.parent.postMessage(JSON.stringify({ type: 'HANDSHAKE_ACK' }), allowedOrigin);
 }
 
@@ -44,9 +57,10 @@ export function initHostCommunication(allowedBuilderOrigin: string) {
 
 export function sendToBuilder(msg: any): void {
   if (!isHandshaked) {
-    console.warn('Handshake not complete');
+    console.warn('[Host] Handshake not complete - message blocked:', msg);
     return;
   }
+  console.debug('[Host] Sending message to builder:', msg);
   window.parent.postMessage(JSON.stringify(msg), allowedOrigin);
 }
 
